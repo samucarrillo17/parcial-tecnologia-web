@@ -14,10 +14,19 @@ pip install -r requirements.txt
 cp .env.example .env             # Windows: copy .env.example .env
 ```
 
+## Envío de correos (OTP)
+
+El login envía un código OTP por correo. En `.env`:
+
+- **Desarrollo:** `EMAIL_BACKEND=console` imprime el código en la terminal del servidor (sin SMTP).
+- **Producción:** `EMAIL_BACKEND=smtp` y completar `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`.
+
+Si `EMAIL_BACKEND` no está definido se usa `smtp`, y sin credenciales el login responde 503.
+
 ## Ejecutar
 
 ```bash
-uvicorn app.main:app --reload
+python -m uvicorn app.main:app --reload
 ```
 
 - API: http://127.0.0.1:8000
@@ -27,7 +36,7 @@ uvicorn app.main:app --reload
 ## Tests
 
 ```bash
-pytest
+python -m pytest
 ```
 
 ## Estructura
@@ -53,8 +62,8 @@ tests/
 
 | Método | Ruta | Estado |
 |---|---|---|
-| POST | /auth/register | pendiente |
-| POST | /auth/login | pendiente |
+| POST | /auth/register | implementado |
+| POST | /auth/login | implementado |
 | POST | /auth/verify-otp | pendiente |
 | POST | /auth/refresh | pendiente |
 | POST | /auth/logout | pendiente |

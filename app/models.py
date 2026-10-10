@@ -1,11 +1,11 @@
 """Modelos SQLAlchemy (tablas de la base de datos).
 
-Hoy solo existe ``users``. Las tablas ``otp_codes`` y ``login_sessions``
-(sección 3.1 del parcial) se agregan en sus propias ramas.
+Existen ``users`` y ``otp_codes``. La tabla ``login_sessions``
+(sección 3.1 del parcial) se agrega en su propia rama.
 """
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -39,4 +39,28 @@ class User(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False
+    )
+
+
+class OtpCode(Base):
+    """Código OTP de un solo uso enviado al correo del usuario.
+
+    Attributes:
+        id: identificador único autoincremental.
+        user_id: usuario dueño del código (``users.id``).
+        code: código de 6 dígitos.
+        expires_at: momento en que el código deja de ser válido (15 min tras crearse).
+        used: True si ya se usó o se invalidó; un código usado nunca vuelve a valer.
+        created_at: fecha de creación (UTC).
+    """
+
+    __tablename__ = "otp_codes"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
+    code: Mapped[str] = mapped_column(String(6), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
     )
