@@ -35,3 +35,9 @@ def verify_password(password: str, password_hash: str) -> bool:
         return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
     except ValueError:
         return False
+
+
+# Hash de una contraseña inventada. Se usa en el login cuando el email no existe,
+# para que verificar tarde lo mismo que con un usuario real y no se pueda
+# descubrir qué correos están registrados midiendo el tiempo de respuesta.
+DUMMY_HASH = hash_password("contraseña-señuelo-no-usar")

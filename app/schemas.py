@@ -85,3 +85,42 @@ class UserResponse(BaseModel):
             }
         },
     )
+
+
+class LoginRequest(BaseModel):
+    """Credenciales para iniciar sesión.
+
+    Aquí NO se exigen las reglas de fortaleza del registro: en el login solo
+    se comprueba que la contraseña coincida, y así no se revela la política.
+    """
+
+    email: EmailStr = Field(..., examples=["ana.perez@gmail.com"])
+    password: str = Field(..., min_length=1, max_length=72, examples=["Segura123"])
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {"email": "ana.perez@gmail.com", "password": "Segura123"}
+        }
+    )
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        """Pasa el email a minúsculas, igual que en el registro."""
+        return value.lower()
+
+
+class LoginResponse(BaseModel):
+    """Respuesta del login: confirma el envío del OTP (nunca incluye el código)."""
+
+    message: str
+    expires_in_minutes: int
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "message": "Te enviamos un código de verificación a tu correo",
+                "expires_in_minutes": 15,
+            }
+        }
+    )

@@ -50,3 +50,16 @@ def client(db_session: Session) -> Generator[TestClient, None, None]:
     fastapi_app.dependency_overrides.clear()
     limiter.enabled = True
     limiter.reset()
+
+
+@pytest.fixture(autouse=True)
+def safe_email_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Evita que los tests envíen correos reales con las credenciales de tu .env.
+
+    ``load_dotenv`` mete en el entorno el SMTP real del .env; aquí se borra
+    en cada test. Si un test olvida simular el envío, fallará con
+    EmailDeliveryError en lugar de mandar un correo de verdad.
+    """
+    monkeypatch.setenv("EMAIL_BACKEND", "smtp")
+    for var in ("SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD", "SMTP_FROM"):
+        monkeypatch.delenv(var, raising=False)
