@@ -4,7 +4,7 @@ Pydantic revisa automáticamente los datos de cada petición. Si algo no
 cumple las reglas, FastAPI responde 422 sin que el endpoint llegue a ejecutarse.
 """
 from datetime import datetime
-
+from typing import Optional
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
@@ -128,8 +128,8 @@ class LoginResponse(BaseModel):
 class UserUpdate(BaseModel):
     """Datos permitidos para actualizar el perfil del usuario."""
 
-    full_name: str | None = Field(None, min_length=1, max_length=100, examples=["Ana María Pérez"])
-    email: EmailStr | None = Field(None, examples=["ana.nuevo@gmail.com"])
+    full_name: Optional[str] = Field(None, min_length=1, max_length=100, examples=["Ana María Pérez"])
+    email: Optional[EmailStr] = Field(None, examples=["ana.nuevo@gmail.com"])
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -142,13 +142,13 @@ class UserUpdate(BaseModel):
 
     @field_validator("email")
     @classmethod
-    def normalize_email(cls, value: str | None) -> str | None:
+    def normalize_email(cls, value: Optional[str]) -> Optional[str]:
         """Pasa el email a minúsculas si es provisto."""
         return value.lower() if value else None
 
     @field_validator("full_name")
     @classmethod
-    def validate_full_name(cls, value: str | None) -> str | None:
+    def validate_full_name(cls, value: Optional[str]) -> Optional[str]:
         """Quita espacios sobrantes si es provisto."""
         if value is not None:
             value = value.strip()
