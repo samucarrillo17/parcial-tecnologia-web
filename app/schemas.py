@@ -124,3 +124,34 @@ class LoginResponse(BaseModel):
             }
         }
     )
+
+class UserUpdate(BaseModel):
+    """Datos permitidos para actualizar el perfil del usuario."""
+
+    full_name: str | None = Field(None, min_length=1, max_length=100, examples=["Ana María Pérez"])
+    email: EmailStr | None = Field(None, examples=["ana.nuevo@gmail.com"])
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "full_name": "Ana María Pérez",
+                "email": "ana.nuevo@gmail.com",
+            }
+        }
+    )
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str | None) -> str | None:
+        """Pasa el email a minúsculas si es provisto."""
+        return value.lower() if value else None
+
+    @field_validator("full_name")
+    @classmethod
+    def validate_full_name(cls, value: str | None) -> str | None:
+        """Quita espacios sobrantes si es provisto."""
+        if value is not None:
+            value = value.strip()
+            if not value:
+                raise ValueError("El nombre completo no puede estar vacío")
+        return value
