@@ -140,18 +140,52 @@ class UserUpdate(BaseModel):
         }
     )
 
+    
+
+class ResendOtpRequest(BaseModel):
+    """Correo del usuario que pide que se le reenvíe el código OTP."""
+
+    email: EmailStr = Field(..., examples=["ana.perez@gmail.com"])
+
+    model_config = ConfigDict(json_schema_extra={"example": {"email": "ana.perez@gmail.com"}})
+
     @field_validator("email")
     @classmethod
-    def normalize_email(cls, value: str | None) -> str | None:
-        """Pasa el email a minúsculas si es provisto."""
-        return value.lower() if value else None
+    def normalize_email(cls, value: str) -> str:
+        """Pasa el email a minúsculas, igual que en el registro y el login."""
+        return value.lower()
 
-    @field_validator("full_name")
-    @classmethod
-    def validate_full_name(cls, value: str | None) -> str | None:
-        """Quita espacios sobrantes si es provisto."""
-        if value is not None:
-            value = value.strip()
-            if not value:
-                raise ValueError("El nombre completo no puede estar vacío")
-        return value
+
+class ResendOtpResponse(BaseModel):
+    """Respuesta de reenvío de OTP.
+
+    El mensaje es el mismo exista o no el correo, para no revelar qué
+    correos están registrados.
+    """
+
+    message: str
+    expires_in_minutes: int
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "message": "Si el correo está registrado, te enviamos un código de verificación",
+                "expires_in_minutes": 15,
+            }
+        }
+    )
+
+
+
+class LogoutResponse(BaseModel):
+    """Confirmación de cierre de sesión."""
+
+    message: str
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "message": "Sesión cerrada correctamente"
+            }
+        }
+    )

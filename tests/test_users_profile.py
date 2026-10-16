@@ -1,8 +1,7 @@
 """Tests de integración para los endpoints /users/profile (GET y PUT)."""
 from app.models import User
 from app.security import hash_password
-import jwt
-from app.middleware import JWT_SECRET, JWT_ALGORITHM
+from tests.helpers import make_token
 
 
 def test_get_profile_success(client, db_session):
@@ -13,7 +12,7 @@ def test_get_profile_success(client, db_session):
     db_session.refresh(user)
 
     # Creamos el token usando los mismos parámetros del middleware
-    token = jwt.encode({"sub": str(user.id)}, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    token = make_token(db_session, user)
     headers = {"Authorization": f"Bearer {token}"}
 
     response = client.get("/users/profile", headers=headers)
@@ -37,7 +36,7 @@ def test_update_profile_success(client, db_session):
     db_session.commit()
     db_session.refresh(user)
 
-    token = jwt.encode({"sub": str(user.id)}, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    token = make_token(db_session, user)
     headers = {"Authorization": f"Bearer {token}"}
 
     response = client.put(
@@ -60,7 +59,7 @@ def test_update_profile_duplicate_email_conflict(client, db_session):
     db_session.refresh(user1)
     db_session.refresh(user2)
 
-    token = jwt.encode({"sub": str(user1.id)}, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    token = make_token(db_session, user1)
     headers = {"Authorization": f"Bearer {token}"}
 
     response = client.put("/users/profile", json={"email": "user2@gmail.com"}, headers=headers)
@@ -74,7 +73,7 @@ def test_update_profile_empty_body_bad_request(client, db_session):
     db_session.commit()
     db_session.refresh(user)
 
-    token = jwt.encode({"sub": str(user.id)}, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    token = make_token(db_session, user)
     headers = {"Authorization": f"Bearer {token}"}
 
     response = client.put("/users/profile", json={}, headers=headers)
@@ -86,7 +85,7 @@ def test_update_profile_null_fields_bad_request(client, db_session):
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
-    token = jwt.encode({"sub": str(user.id)}, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    token = make_token(db_session, user)
     headers = {"Authorization": f"Bearer {token}"}
 
     response = client.put("/users/profile", json={"email": None}, headers=headers)
@@ -99,7 +98,7 @@ def test_update_profile_invalid_email_format(client, db_session):
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
-    token = jwt.encode({"sub": str(user.id)}, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    token = make_token(db_session, user)
     headers = {"Authorization": f"Bearer {token}"}
 
     response = client.put("/users/profile", json={"email": "no-es-un-correo"}, headers=headers)

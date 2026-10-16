@@ -4,20 +4,36 @@ Implementados: POST /auth/register, POST /auth/login
 Pendientes (sección 5 del parcial):
     POST /auth/verify-otp, /auth/refresh, /auth/logout, /auth/resend-otp
 """
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import User
+from app.middleware import get_current_user, security
+from app.models import LoginSession, OtpCode, User
 from app.rate_limit import limiter
-from app.schemas import LoginRequest, LoginResponse, RegisterRequest, UserResponse
+from app.schemas import (
+    LoginRequest,
+    LoginResponse,
+    LogoutResponse,
+    RegisterRequest,
+    ResendOtpRequest,
+    ResendOtpResponse,
+    UserResponse,
+)
 from app.security import DUMMY_HASH, hash_password, verify_password
 from app.services.email_service import EmailDeliveryError, send_otp
 from app.services.otp_service import OTP_EXPIRE_MINUTES, generate_otp, invalidate_user_codes
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+# Segundos mínimos entre dos reenvíos de OTP al mismo usuario (evita el spam de correos).
+RESEND_COOLDOWN_SECONDS = 60
 
 
 @router.post(
@@ -140,3 +156,113 @@ def login(
         message="Te enviamos un código de verificación a tu correo",
         expires_in_minutes=OTP_EXPIRE_MINUTES,
     )
+
+
+
+@router.post(
+    "/resend-otp",
+    response_model=ResendOtpResponse,
+    summary="Reenviar el código OTP al correo",
+    responses={
+        422: {"description": "Datos de entrada inválidos"},
+        429: {"description": "Demasiados intentos, espera un momento"},
+        503: {"description": "No se pudo enviar el correo con el OTP"},
+    },
+)
+@limiter.limit("3/minute")
+def resend_otp(
+    request: Request,  # slowapi lo necesita para identificar la IP del cliente
+    payload: ResendOtpRequest,
+    db: Session = Depends(get_db),
+) -> ResendOtpResponse:
+    """Genera un OTP nuevo y lo envía de nuevo al correo del usuario.
+
+    Medidas de seguridad:
+        - La respuesta es idéntica (200) exista o no el correo, para no
+          revelar qué correos están registrados.
+        - Rate limit por IP (3 por minuto) y una espera de
+          ``RESEND_COOLDOWN_SECONDS`` entre reenvíos al mismo usuario; dentro
+          de esa espera no se envía nada y el código anterior sigue vigente.
+        - Al generar el código nuevo, los anteriores quedan invalidados.
+
+    Args:
+        request: petición HTTP (usada por el rate limiter).
+        payload: correo del usuario.
+        db: sesión de base de datos inyectada por FastAPI.
+
+    Returns:
+        ResendOtpResponse: mensaje genérico y minutos de vigencia del código.
+
+    Raises:
+        HTTPException: 503 si el correo no pudo enviarse.
+    """
+    response = ResendOtpResponse(
+        message="Si el correo está registrado, te enviamos un código de verificación",
+        expires_in_minutes=OTP_EXPIRE_MINUTES,
+    )
+
+    user = db.scalar(select(User).where(User.email == payload.email))
+    if user is None:
+        return response
+
+    # Cooldown: si el último código se generó hace muy poco, no se envía otro.
+    last_code = db.scalar(
+        select(OtpCode).where(OtpCode.user_id == user.id).order_by(OtpCode.id.desc())
+    )
+    if last_code is not None:
+        created_at = last_code.created_at
+        if created_at.tzinfo is None:  # SQLite devuelve las fechas sin zona horaria
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) - created_at < timedelta(seconds=RESEND_COOLDOWN_SECONDS):
+            return response
+
+    code = generate_otp(db, user)
+    try:
+        send_otp(user.email, code)
+    except EmailDeliveryError:
+        # El usuario nunca recibió el código: se invalida para que no quede activo.
+        invalidate_user_codes(db, user.id)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="No pudimos enviar el código de verificación. Intenta de nuevo más tarde",
+        )
+    return response
+
+
+@router.post(
+    "/logout",
+    response_model=LogoutResponse,
+    summary="Cerrar sesión y revocar el token actual",
+    responses={
+        401: {"description": "No autenticado, token inválido o sesión ya cerrada"},
+    },
+)
+def logout(
+    current_user: User = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
+) -> LogoutResponse:
+    """Cierra la sesión: elimina el token actual de ``login_sessions``.
+
+    Desde ese momento el middleware rechaza el token con 401, aunque su fecha
+    de expiración todavía no haya llegado. Solo se revoca el token con el que
+    se hizo la petición; otras sesiones del usuario siguen activas.
+
+    Args:
+        current_user: usuario autenticado (el middleware ya validó el token).
+        credentials: header ``Authorization: Bearer <token>`` de la petición.
+        db: sesión de base de datos inyectada por FastAPI.
+
+    Returns:
+        LogoutResponse: confirmación del cierre de sesión.
+    """
+    session = db.scalar(
+        select(LoginSession).where(
+            LoginSession.token == credentials.credentials,
+            LoginSession.user_id == current_user.id,
+        )
+    )
+    if session is not None:
+        db.delete(session)
+        db.commit()
+    return LogoutResponse(message="Sesión cerrada correctamente")

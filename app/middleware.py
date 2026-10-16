@@ -6,7 +6,7 @@ import jwt
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models import User
+from app.models import LoginSession, User
 
 JWT_SECRET = os.getenv("JWT_SECRET", "super-secret-jwt-key-change-me-32-bytes-long")
 JWT_ALGORITHM = "HS256"
@@ -32,6 +32,14 @@ def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token inválido o expirado",
+        )
+    
+        # Un token cerrado con /auth/logout ya no tiene sesión: se rechaza aunque no haya expirado.
+    session = db.scalar(select(LoginSession).where(LoginSession.token == token))
+    if session is None or str(session.user_id) != str(user_id):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sesión cerrada o inválida",
         )
 
     user = db.scalar(select(User).where(User.id == user_id))
