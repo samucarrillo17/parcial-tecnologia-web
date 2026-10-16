@@ -17,14 +17,14 @@ class RegisterRequest(BaseModel):
         - ``full_name``: no vacío, máximo 100 caracteres.
     """
 
-    email: EmailStr = Field(..., examples=["ana.perez@gmail.com"])
+    email: EmailStr = Field(..., examples=["joshua.nieto@gmail.com"])
     password: str = Field(..., min_length=8, max_length=72, examples=["Segura123"])
     full_name: str = Field(..., min_length=1, max_length=100, examples=["Ana Pérez"])
 
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "email": "ana.perez@gmail.com",
+                "email": "joshua.nieto@gmail.com",
                 "password": "Segura123",
                 "full_name": "Ana Pérez",
             }
@@ -79,7 +79,7 @@ class UserResponse(BaseModel):
         json_schema_extra={
             "example": {
                 "id": 1,
-                "email": "ana.perez@gmail.com",
+                "email": "joshua.nieto@gmail.com",
                 "full_name": "Ana Pérez",
                 "created_at": "2026-10-09T16:55:00Z",
             }
@@ -94,12 +94,12 @@ class LoginRequest(BaseModel):
     se comprueba que la contraseña coincida, y así no se revela la política.
     """
 
-    email: EmailStr = Field(..., examples=["ana.perez@gmail.com"])
+    email: EmailStr = Field(..., examples=["joshua.nieto@gmail.com"])
     password: str = Field(..., min_length=1, max_length=72, examples=["Segura123"])
 
     model_config = ConfigDict(
         json_schema_extra={
-            "example": {"email": "ana.perez@gmail.com", "password": "Segura123"}
+            "example": {"email": "joshua.nieto@gmail.com", "password": "Segura123"}
         }
     )
 
@@ -160,9 +160,9 @@ class UserUpdate(BaseModel):
 class ResendOtpRequest(BaseModel):
     """Correo del usuario que pide que se le reenvíe el código OTP."""
 
-    email: EmailStr = Field(..., examples=["ana.perez@gmail.com"])
+    email: EmailStr = Field(..., examples=["joshua.nieto@gmail.com"])
 
-    model_config = ConfigDict(json_schema_extra={"example": {"email": "ana.perez@gmail.com"}})
+    model_config = ConfigDict(json_schema_extra={"example": {"email": "joshua.nieto@gmail.com"}})
 
     @field_validator("email")
     @classmethod
@@ -209,12 +209,12 @@ class VerifyOtpRequest(BaseModel):
         - ``code``: exactamente 6 dígitos numéricos.
     """
 
-    email: EmailStr = Field(..., examples=["ana.perez@gmail.com"])
+    email: EmailStr = Field(..., examples=["joshua.nieto@gmail.com"])
     code: str = Field(..., pattern=r"^\d{6}$", examples=["482913"])
 
     model_config = ConfigDict(
         json_schema_extra={
-            "example": {"email": "ana.perez@gmail.com", "code": "482913"}
+            "example": {"email": "joshua.nieto@gmail.com", "code": "482913"}
         }
     )
 

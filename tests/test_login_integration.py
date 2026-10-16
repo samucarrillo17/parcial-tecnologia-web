@@ -12,7 +12,7 @@ from sqlalchemy import select
 
 from app.models import OtpCode, User
 
-USER = {"email": "ana.perez@gmail.com", "password": "Segura123", "full_name": "Ana Pérez"}
+USER = {"email": "joshua.nieto@gmail.com", "password": "Segura123", "full_name": "Ana Pérez"}
 CREDENTIALS = {"email": USER["email"], "password": USER["password"]}
 
 

@@ -6,7 +6,7 @@ from app.models import User
 from app.rate_limit import limiter
 
 VALID_USER = {
-    "email": "ana.perez@gmail.com",
+    "email": "joshua.nieto@gmail.com",
     "password": "Segura123",
     "full_name": "Ana Pérez",
 }
@@ -18,7 +18,7 @@ def test_register_success(client):
 
     assert response.status_code == 201
     body = response.json()
-    assert body["email"] == "ana.perez@gmail.com"
+    assert body["email"] == "joshua.nieto@gmail.com"
     assert body["full_name"] == "Ana Pérez"
     assert "id" in body and "created_at" in body
     assert "password" not in body

@@ -12,7 +12,7 @@ from app.rate_limit import limiter
 from app.security import hash_password
 from app.services.email_service import EmailDeliveryError
 
-CREDENTIALS = {"email": "ana.perez@gmail.com", "password": "Segura123"}
+CREDENTIALS = {"email": "joshua.nieto@gmail.com", "password": "Segura123"}
 
 
 @pytest.fixture()

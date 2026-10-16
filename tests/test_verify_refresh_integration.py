@@ -12,7 +12,7 @@ from sqlalchemy import select
 from app.middleware import JWT_ALGORITHM, JWT_SECRET
 from app.models import LoginSession, OtpCode
 
-USER = {"email": "ana.perez@gmail.com", "password": "Segura123", "full_name": "Ana Pérez"}
+USER = {"email": "joshua.nieto@gmail.com", "password": "Segura123", "full_name": "Ana Pérez"}
 CREDENTIALS = {"email": USER["email"], "password": USER["password"]}
 
 
