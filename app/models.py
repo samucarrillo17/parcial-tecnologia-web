@@ -5,7 +5,7 @@ Existen ``users`` y ``otp_codes``. La tabla ``login_sessions``
 """
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -61,6 +61,33 @@ class OtpCode(Base):
     code: Mapped[str] = mapped_column(String(6), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     used: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+
+    
+
+class LoginSession(Base):
+    """Sesión activa: registra cada JWT emitido para poder revocarlo.
+
+    Un token solo es válido mientras exista su fila aquí. Al cerrar sesión
+    (``POST /auth/logout``) la fila se elimina y el token deja de funcionar,
+    aunque su fecha de expiración no haya llegado.
+
+    Attributes:
+        id: identificador único autoincremental.
+        user_id: usuario dueño de la sesión (``users.id``).
+        token: JWT emitido para esta sesión.
+        expires_at: momento en que expira el token (UTC).
+        created_at: fecha de creación (UTC).
+    """
+
+    __tablename__ = "login_sessions"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
+    token: Mapped[str] = mapped_column(Text, unique=True, index=True, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
     )

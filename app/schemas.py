@@ -140,8 +140,47 @@ class UserUpdate(BaseModel):
         }
     )
 
+    
+
+class ResendOtpRequest(BaseModel):
+    """Correo del usuario que pide que se le reenvíe el código OTP."""
+
+    email: EmailStr = Field(..., examples=["ana.perez@gmail.com"])
+
+    model_config = ConfigDict(json_schema_extra={"example": {"email": "ana.perez@gmail.com"}})
+
     @field_validator("email")
     @classmethod
+    def normalize_email(cls, value: str) -> str:
+        """Pasa el email a minúsculas, igual que en el registro y el login."""
+        return value.lower()
+
+
+class ResendOtpResponse(BaseModel):
+    """Respuesta de reenvío de OTP.
+
+    El mensaje es el mismo exista o no el correo, para no revelar qué
+    correos están registrados.
+    """
+
+    message: str
+    expires_in_minutes: int
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "message": "Si el correo está registrado, te enviamos un código de verificación",
+                "expires_in_minutes": 15,
+            }
+        }
+    )
+
+
+
+class LogoutResponse(BaseModel):
+    """Confirmación de cierre de sesión."""
+
+    message: str
     def normalize_email(cls, value: Optional[str]) -> Optional[str]:
         """Pasa el email a minúsculas si es provisto."""
         return value.lower() if value else None
@@ -196,6 +235,10 @@ class TokenResponse(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
+                "message": "Sesión cerrada correctamente"
+            }
+        }
+    )
                 "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
                 "token_type": "bearer",
                 "expires_in": 1800,
