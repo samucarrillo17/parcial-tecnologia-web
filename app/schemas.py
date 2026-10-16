@@ -4,7 +4,7 @@ Pydantic revisa automáticamente los datos de cada petición. Si algo no
 cumple las reglas, FastAPI responde 422 sin que el endpoint llegue a ejecutarse.
 """
 from datetime import datetime
-
+from typing import Optional
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
@@ -128,8 +128,8 @@ class LoginResponse(BaseModel):
 class UserUpdate(BaseModel):
     """Datos permitidos para actualizar el perfil del usuario."""
 
-    full_name: str | None = Field(None, min_length=1, max_length=100, examples=["Ana María Pérez"])
-    email: EmailStr | None = Field(None, examples=["ana.nuevo@gmail.com"])
+    full_name: Optional[str] = Field(None, min_length=1, max_length=100, examples=["Ana María Pérez"])
+    email: Optional[EmailStr] = Field(None, examples=["ana.nuevo@gmail.com"])
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -142,16 +142,63 @@ class UserUpdate(BaseModel):
 
     @field_validator("email")
     @classmethod
-    def normalize_email(cls, value: str | None) -> str | None:
+    def normalize_email(cls, value: Optional[str]) -> Optional[str]:
         """Pasa el email a minúsculas si es provisto."""
         return value.lower() if value else None
 
     @field_validator("full_name")
     @classmethod
-    def validate_full_name(cls, value: str | None) -> str | None:
+    def validate_full_name(cls, value: Optional[str]) -> Optional[str]:
         """Quita espacios sobrantes si es provisto."""
         if value is not None:
             value = value.strip()
             if not value:
                 raise ValueError("El nombre completo no puede estar vacío")
         return value
+
+class VerifyOtpRequest(BaseModel):
+    """Datos para verificar el OTP recibido por correo.
+
+    Reglas:
+        - ``email``: el mismo correo con el que se hizo login (se pasa a minúsculas).
+        - ``code``: exactamente 6 dígitos numéricos.
+    """
+
+    email: EmailStr = Field(..., examples=["ana.perez@gmail.com"])
+    code: str = Field(..., pattern=r"^\d{6}$", examples=["482913"])
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {"email": "ana.perez@gmail.com", "code": "482913"}
+        }
+    )
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        """Pasa el email a minúsculas, igual que en registro y login."""
+        return value.lower()
+
+
+class TokenResponse(BaseModel):
+    """Respuesta con un token JWT de acceso (verify-otp y refresh).
+
+    Attributes:
+        access_token: JWT firmado; se envía en ``Authorization: Bearer <token>``.
+        token_type: siempre ``"bearer"``.
+        expires_in: segundos de vigencia del token desde que se emitió.
+    """
+
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                "token_type": "bearer",
+                "expires_in": 1800,
+            }
+        }
+    )
