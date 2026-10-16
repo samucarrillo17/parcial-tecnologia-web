@@ -4,11 +4,12 @@ Un OTP (One-Time Password) es un código de 6 dígitos, de un solo uso y con
 vida corta. Este módulo lo genera, lo guarda en la tabla ``otp_codes`` y
 invalida los códigos anteriores del mismo usuario.
 """
+import hmac
 import os
 from datetime import datetime, timedelta, timezone
 
 import pyotp
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.models import OtpCode, User
@@ -70,3 +71,50 @@ def generate_otp(db: Session, user: User) -> str:
     )
     db.commit()
     return code
+
+def verify_otp(db: Session, user: User, code: str) -> bool:
+    """Comprueba el OTP de un usuario y, si es correcto, lo consume.
+
+    Un código es válido solo si es el último generado para el usuario, no se
+    ha usado y no ha expirado. Si es válido se marca como usado, así que no
+    sirve una segunda vez.
+
+    Por seguridad devuelve solo True/False: el llamador no distingue entre
+    "no existe", "expiró" o "es incorrecto".
+
+    Args:
+        db: sesión de base de datos.
+        user: usuario que intenta verificar.
+        code: código de 6 dígitos que escribió el usuario.
+
+    Returns:
+        bool: True si el código era válido (y quedó consumido); False si no.
+    """
+    otp = db.scalar(
+        select(OtpCode)
+        .where(OtpCode.user_id == user.id, OtpCode.used.is_(False))
+        .order_by(OtpCode.id.desc())
+        .limit(1)
+    )
+    if otp is None:
+        return False
+
+    # SQLite guarda las fechas sin zona horaria: se vuelve a marcar como UTC
+    # para poder compararla con la hora actual (que sí la tiene).
+    expires_at = otp.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at <= datetime.now(timezone.utc):
+        return False
+
+    # compare_digest compara en tiempo constante (evita ataques por tiempo).
+    if not hmac.compare_digest(otp.code, code):
+        return False
+
+    # UPDATE atómico: solo "gana" una petición aunque lleguen dos a la vez con
+    # el mismo código. La segunda encuentra used=True y no actualiza ninguna fila.
+    result = db.execute(
+        update(OtpCode).where(OtpCode.id == otp.id, OtpCode.used.is_(False)).values(used=True)
+    )
+    db.commit()
+    return result.rowcount == 1
