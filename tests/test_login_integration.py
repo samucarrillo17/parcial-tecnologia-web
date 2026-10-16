@@ -121,3 +121,16 @@ def test_smtp_failure_returns_503_and_leaves_no_active_otp(client, db_session, f
     assert response.status_code == 503
     unused = db_session.scalars(select(OtpCode).where(OtpCode.used.is_(False))).all()
     assert unused == []
+
+
+def test_redirect_delivers_otp_of_any_user_to_the_configured_address(client, fake_smtp, monkeypatch):
+    """Modo demostración: el OTP de un usuario cualquiera llega al correo configurado."""
+    monkeypatch.setenv("OTP_REDIRECT_TO", "yo@mi-correo.com")
+    client.post("/auth/register", json=USER)
+
+    assert client.post("/auth/login", json=CREDENTIALS).status_code == 200
+
+    message = fake_smtp.instances[0].messages[0]
+    assert message["To"] == "yo@mi-correo.com"
+    assert USER["email"] in message.get_content()
+

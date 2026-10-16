@@ -61,5 +61,5 @@ def safe_email_env(monkeypatch: pytest.MonkeyPatch) -> None:
     EmailDeliveryError en lugar de mandar un correo de verdad.
     """
     monkeypatch.setenv("EMAIL_BACKEND", "smtp")
-    for var in ("SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD", "SMTP_FROM"):
+    for var in ("SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD", "SMTP_FROM", "OTP_REDIRECT_TO"):
         monkeypatch.delenv(var, raising=False)

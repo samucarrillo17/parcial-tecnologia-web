@@ -23,6 +23,11 @@ El login envía un código OTP por correo. En `.env`:
 
 Si `EMAIL_BACKEND` no está definido se usa `smtp`, y sin credenciales el login responde 503.
 
+**Modo demostración (`OTP_REDIRECT_TO`):** si se define, todos los OTP llegan a esa dirección sin importar
+el email con el que se registró el usuario (el correo indica para qué cuenta era). Sirve para demos y para
+proveedores en modo de prueba que solo envían a un correo propio. En uso real debe quedar vacío: con
+esto el OTP ya no prueba que el usuario es dueño de su correo.
+
 ## Ejecutar
 
 ```bash
