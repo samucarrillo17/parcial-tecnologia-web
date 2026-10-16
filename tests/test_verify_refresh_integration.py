@@ -10,7 +10,7 @@ import pytest
 from sqlalchemy import select
 
 from app.middleware import JWT_ALGORITHM, JWT_SECRET
-from app.models import OtpCode
+from app.models import LoginSession, OtpCode
 
 USER = {"email": "ana.perez@gmail.com", "password": "Segura123", "full_name": "Ana Pérez"}
 CREDENTIALS = {"email": USER["email"], "password": USER["password"]}
@@ -135,3 +135,31 @@ def test_logout_after_verify_revokes_the_issued_token(client, logged_in_code):
     assert client.post("/auth/logout", headers=headers).status_code == 200
 
     assert client.get("/users/profile", headers=headers).status_code == 401
+
+def test_refresh_revokes_the_old_token(client, logged_in_code):
+    """Tras refrescar, el token viejo da 401 y solo el nuevo abre rutas protegidas."""
+    old = bearer(verify(client, logged_in_code).json()["access_token"])
+    new = bearer(client.post("/auth/refresh", headers=old).json()["access_token"])
+
+    assert client.get("/users/profile", headers=old).status_code == 401
+    assert client.get("/users/profile", headers=new).status_code == 200
+
+
+def test_old_token_cannot_logout_or_refresh_but_new_one_can(client, logged_in_code):
+    """El token viejo no puede cerrar sesión ni refrescar; el nuevo sí cierra sesión."""
+    old = bearer(verify(client, logged_in_code).json()["access_token"])
+    new = bearer(client.post("/auth/refresh", headers=old).json()["access_token"])
+
+    assert client.post("/auth/logout", headers=old).status_code == 401
+    assert client.post("/auth/refresh", headers=old).status_code == 401
+    assert client.post("/auth/logout", headers=new).status_code == 200
+    assert client.get("/users/profile", headers=new).status_code == 401
+
+
+def test_refresh_leaves_a_single_active_session(client, db_session, logged_in_code):
+    """Refrescar reemplaza la sesión: en login_sessions queda solo la del token nuevo."""
+    old = bearer(verify(client, logged_in_code).json()["access_token"])
+    new_token = client.post("/auth/refresh", headers=old).json()["access_token"]
+
+    sessions = db_session.scalars(select(LoginSession)).all()
+    assert [s.token for s in sessions] == [new_token]
