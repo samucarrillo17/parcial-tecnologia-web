@@ -125,3 +125,13 @@ def test_refresh_with_expired_token_returns_401(client, logged_in_code):
     )
 
     assert client.post("/auth/refresh", headers=bearer(expired)).status_code == 401
+
+
+def test_logout_after_verify_revokes_the_issued_token(client, logged_in_code):
+    """Integración verify-otp + logout: el token emitido sirve y deja de servir tras cerrar sesión."""
+    headers = bearer(verify(client, logged_in_code).json()["access_token"])
+    assert client.get("/users/profile", headers=headers).status_code == 200
+
+    assert client.post("/auth/logout", headers=headers).status_code == 200
+
+    assert client.get("/users/profile", headers=headers).status_code == 401

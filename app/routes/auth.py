@@ -1,9 +1,7 @@
 """Endpoints de autenticación.
 
-Implementados: POST /auth/register, POST /auth/login,
-    POST /auth/verify-otp, POST /auth/refresh
-Pendientes (sección 5 del parcial):
-    POST /auth/logout, /auth/resend-otp
+Implementados: POST /auth/register, /auth/login, /auth/verify-otp,
+    /auth/refresh, /auth/logout y /auth/resend-otp
 """
 from datetime import datetime, timedelta, timezone
 
@@ -24,33 +22,19 @@ from app.schemas import (
     RegisterRequest,
     ResendOtpRequest,
     ResendOtpResponse,
-    UserResponse,
-from app.middleware import get_current_user
-from app.models import User
-from app.rate_limit import limiter
-from app.schemas import LoginRequest, LoginResponse, RegisterRequest, UserResponse
-
-from app.schemas import (
-    LoginRequest,
-    LoginResponse,
-    RegisterRequest,
     TokenResponse,
     UserResponse,
     VerifyOtpRequest,
 )
 from app.security import DUMMY_HASH, hash_password, verify_password
 from app.services.email_service import EmailDeliveryError, send_otp
-from app.services.otp_service import OTP_EXPIRE_MINUTES, generate_otp, invalidate_user_codes
-
-
-
 from app.services.otp_service import (
     OTP_EXPIRE_MINUTES,
     generate_otp,
     invalidate_user_codes,
     verify_otp,
 )
-from app.services.token_service import create_access_token
+from app.services.token_service import create_session_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -181,7 +165,6 @@ def login(
     )
 
 
-
 @router.post(
     "/resend-otp",
     response_model=ResendOtpResponse,
@@ -289,6 +272,8 @@ def logout(
         db.delete(session)
         db.commit()
     return LogoutResponse(message="Sesión cerrada correctamente")
+
+
 @router.post(
     "/verify-otp",
     response_model=TokenResponse,
@@ -332,7 +317,7 @@ def verify_otp_endpoint(
     if user is None or not verify_otp(db, user, payload.code):
         raise invalid
 
-    token, expires_in = create_access_token(user.id)
+    token, expires_in = create_session_token(db, user.id)
     return TokenResponse(access_token=token, expires_in=expires_in)
 
 
@@ -349,6 +334,7 @@ def verify_otp_endpoint(
 def refresh_token(
     request: Request,  # slowapi lo necesita para identificar la IP del cliente
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> TokenResponse:
     """Emite un JWT nuevo para el usuario autenticado.
 
@@ -359,6 +345,7 @@ def refresh_token(
     Args:
         request: petición HTTP (usada por el rate limiter).
         current_user: usuario dueño del token actual, entregado por el middleware.
+        db: sesión de base de datos inyectada por FastAPI.
 
     Returns:
         TokenResponse: token JWT nuevo, tipo ``bearer`` y segundos de vigencia.
@@ -367,5 +354,5 @@ def refresh_token(
         HTTPException: 401 (lanzada por el middleware) si el token falta, es
             inválido o ya expiró.
     """
-    token, expires_in = create_access_token(current_user.id)
+    token, expires_in = create_session_token(db, current_user.id)
     return TokenResponse(access_token=token, expires_in=expires_in)

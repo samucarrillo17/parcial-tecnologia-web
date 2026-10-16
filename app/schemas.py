@@ -140,7 +140,22 @@ class UserUpdate(BaseModel):
         }
     )
 
-    
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: Optional[str]) -> Optional[str]:
+        """Pasa el email a minúsculas si es provisto."""
+        return value.lower() if value else None
+
+    @field_validator("full_name")
+    @classmethod
+    def validate_full_name(cls, value: Optional[str]) -> Optional[str]:
+        """Quita espacios sobrantes si es provisto."""
+        if value is not None:
+            value = value.strip()
+            if not value:
+                raise ValueError("El nombre completo no puede estar vacío")
+        return value
+
 
 class ResendOtpRequest(BaseModel):
     """Correo del usuario que pide que se le reenvíe el código OTP."""
@@ -176,24 +191,15 @@ class ResendOtpResponse(BaseModel):
     )
 
 
-
 class LogoutResponse(BaseModel):
     """Confirmación de cierre de sesión."""
 
     message: str
-    def normalize_email(cls, value: Optional[str]) -> Optional[str]:
-        """Pasa el email a minúsculas si es provisto."""
-        return value.lower() if value else None
 
-    @field_validator("full_name")
-    @classmethod
-    def validate_full_name(cls, value: Optional[str]) -> Optional[str]:
-        """Quita espacios sobrantes si es provisto."""
-        if value is not None:
-            value = value.strip()
-            if not value:
-                raise ValueError("El nombre completo no puede estar vacío")
-        return value
+    model_config = ConfigDict(
+        json_schema_extra={"example": {"message": "Sesión cerrada correctamente"}}
+    )
+
 
 class VerifyOtpRequest(BaseModel):
     """Datos para verificar el OTP recibido por correo.
@@ -235,10 +241,6 @@ class TokenResponse(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "message": "Sesión cerrada correctamente"
-            }
-        }
-    )
                 "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
                 "token_type": "bearer",
                 "expires_in": 1800,
