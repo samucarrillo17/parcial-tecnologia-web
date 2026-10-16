@@ -64,8 +64,8 @@ tests/
 |---|---|---|
 | POST | /auth/register | implementado |
 | POST | /auth/login | implementado |
-| POST | /auth/verify-otp | pendiente |
-| POST | /auth/refresh | pendiente |
+| POST | /auth/verify-otp | implementado |
+| POST | /auth/refresh | implementado |
 | POST | /auth/logout | pendiente |
 | POST | /auth/resend-otp | pendiente |
 | GET | /users/profile | pendiente |

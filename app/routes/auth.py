@@ -1,8 +1,9 @@
 """Endpoints de autenticación.
 
-Implementados: POST /auth/register, POST /auth/login
+Implementados: POST /auth/register, POST /auth/login,
+    POST /auth/verify-otp, POST /auth/refresh
 Pendientes (sección 5 del parcial):
-    POST /auth/verify-otp, /auth/refresh, /auth/logout, /auth/resend-otp
+    POST /auth/logout, /auth/resend-otp
 """
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
@@ -10,12 +11,32 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.middleware import get_current_user
 from app.models import User
 from app.rate_limit import limiter
 from app.schemas import LoginRequest, LoginResponse, RegisterRequest, UserResponse
+
+from app.schemas import (
+    LoginRequest,
+    LoginResponse,
+    RegisterRequest,
+    TokenResponse,
+    UserResponse,
+    VerifyOtpRequest,
+)
 from app.security import DUMMY_HASH, hash_password, verify_password
 from app.services.email_service import EmailDeliveryError, send_otp
 from app.services.otp_service import OTP_EXPIRE_MINUTES, generate_otp, invalidate_user_codes
+
+
+
+from app.services.otp_service import (
+    OTP_EXPIRE_MINUTES,
+    generate_otp,
+    invalidate_user_codes,
+    verify_otp,
+)
+from app.services.token_service import create_access_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -140,3 +161,85 @@ def login(
         message="Te enviamos un código de verificación a tu correo",
         expires_in_minutes=OTP_EXPIRE_MINUTES,
     )
+
+
+@router.post(
+    "/verify-otp",
+    response_model=TokenResponse,
+    summary="Verificar el OTP y obtener el JWT",
+    responses={
+        401: {"description": "Código inválido, expirado o ya usado"},
+        422: {"description": "Datos de entrada inválidos"},
+        429: {"description": "Demasiados intentos, espera un momento"},
+    },
+)
+@limiter.limit("5/minute")
+def verify_otp_endpoint(
+    request: Request,  # slowapi lo necesita para identificar la IP del cliente
+    payload: VerifyOtpRequest,
+    db: Session = Depends(get_db),
+) -> TokenResponse:
+    """Verifica el OTP enviado por correo y entrega el token JWT.
+
+    Es el segundo paso del login: ``/auth/login`` valida la contraseña y envía
+    el código; aquí se comprueba ese código y, si es correcto, se emite el JWT.
+    El código se consume: no puede usarse dos veces.
+
+    Args:
+        request: petición HTTP (usada por el rate limiter).
+        payload: email y código de 6 dígitos.
+        db: sesión de base de datos inyectada por FastAPI.
+
+    Returns:
+        TokenResponse: token JWT, tipo ``bearer`` y segundos de vigencia.
+
+    Raises:
+        HTTPException: 401 si el código es incorrecto, expiró, ya se usó o el
+            email no existe (siempre el mismo mensaje, para no revelar cuál).
+    """
+    invalid = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Código inválido o expirado",
+    )
+
+    user = db.scalar(select(User).where(User.email == payload.email))
+    if user is None or not verify_otp(db, user, payload.code):
+        raise invalid
+
+    token, expires_in = create_access_token(user.id)
+    return TokenResponse(access_token=token, expires_in=expires_in)
+
+
+@router.post(
+    "/refresh",
+    response_model=TokenResponse,
+    summary="Refrescar el token JWT",
+    responses={
+        401: {"description": "No autenticado, token inválido o expirado"},
+        429: {"description": "Demasiados intentos, espera un momento"},
+    },
+)
+@limiter.limit("10/minute")
+def refresh_token(
+    request: Request,  # slowapi lo necesita para identificar la IP del cliente
+    current_user: User = Depends(get_current_user),
+) -> TokenResponse:
+    """Emite un JWT nuevo para el usuario autenticado.
+
+    Requiere un token todavía vigente en ``Authorization: Bearer <token>``:
+    ``get_current_user`` ya lo validó (firma y expiración) antes de entrar aquí.
+    El token nuevo trae una expiración renovada.
+
+    Args:
+        request: petición HTTP (usada por el rate limiter).
+        current_user: usuario dueño del token actual, entregado por el middleware.
+
+    Returns:
+        TokenResponse: token JWT nuevo, tipo ``bearer`` y segundos de vigencia.
+
+    Raises:
+        HTTPException: 401 (lanzada por el middleware) si el token falta, es
+            inválido o ya expiró.
+    """
+    token, expires_in = create_access_token(current_user.id)
+    return TokenResponse(access_token=token, expires_in=expires_in)
