@@ -8,6 +8,8 @@ pueda ser leído allá.
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
+from typing import Optional
+from sqlalchemy import delete
 
 import jwt
 from sqlalchemy.orm import Session
@@ -46,8 +48,9 @@ def create_access_token(user_id: int) -> tuple[str, int]:
     token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
     return token, int(expires_delta.total_seconds())
 
-
-def create_session_token(db: Session, user_id: int) -> tuple[str, int]:
+def create_session_token(
+    db: Session, user_id: int, replace_token: Optional[str] = None
+) -> tuple[str, int]:
     """Crea un JWT y registra su sesión activa en ``login_sessions``.
 
     El middleware solo acepta un token si existe su fila en ``login_sessions``
@@ -58,11 +61,21 @@ def create_session_token(db: Session, user_id: int) -> tuple[str, int]:
     Args:
         db: sesión de base de datos.
         user_id: id del usuario dueño del token.
+        replace_token: token anterior que debe quedar revocado. Se usa en
+            ``/auth/refresh``: su sesión se borra en la MISMA transacción en
+            que se crea la nueva, así nunca quedan dos tokens válidos.
 
     Returns:
         tuple[str, int]: el token firmado y su vigencia en segundos.
     """
     token, expires_in = create_access_token(user_id)
+    if replace_token is not None:
+        db.execute(
+            delete(LoginSession).where(
+                LoginSession.token == replace_token,
+                LoginSession.user_id == user_id,
+            )
+        )
     db.add(
         LoginSession(
             user_id=user_id,

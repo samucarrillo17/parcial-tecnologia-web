@@ -334,17 +334,20 @@ def verify_otp_endpoint(
 def refresh_token(
     request: Request,  # slowapi lo necesita para identificar la IP del cliente
     current_user: User = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
 ) -> TokenResponse:
-    """Emite un JWT nuevo para el usuario autenticado.
+    """Emite un JWT nuevo para el usuario autenticado y revoca el anterior.
 
     Requiere un token todavía vigente en ``Authorization: Bearer <token>``:
     ``get_current_user`` ya lo validó (firma y expiración) antes de entrar aquí.
-    El token nuevo trae una expiración renovada.
+    El token nuevo trae una expiración renovada y el token anterior deja de
+    funcionar de inmediato (su sesión se elimina de ``login_sessions``).
 
     Args:
         request: petición HTTP (usada por el rate limiter).
         current_user: usuario dueño del token actual, entregado por el middleware.
+        credentials: header ``Authorization: Bearer <token>``; es el token viejo.
         db: sesión de base de datos inyectada por FastAPI.
 
     Returns:
@@ -354,5 +357,7 @@ def refresh_token(
         HTTPException: 401 (lanzada por el middleware) si el token falta, es
             inválido o ya expiró.
     """
-    token, expires_in = create_session_token(db, current_user.id)
+    token, expires_in = create_session_token(
+        db, current_user.id, replace_token=credentials.credentials
+    )
     return TokenResponse(access_token=token, expires_in=expires_in)
